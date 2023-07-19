@@ -1,6 +1,6 @@
 import argparse, os
 import torch
-from Unet2d_pytorch import UNet, ResUNet, UNet_LRes, ResUNet_LRes
+from model import UNet, ResUNet, UNet_LRes, ResUNet_LRes
 from utils import DataLoaderVal
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -14,6 +14,8 @@ parser.add_argument("--img_size", type=int, default=256, help="size of image")
 parser.add_argument("--dataset", action="store_true", help="name of dataset", default='MRI-PET')
 parser.add_argument("--numOfChannel_allSource", type=int, default=3, help="# of channels for a 2D patch for all the concatenated modalities (Default, 5)")
 parser.add_argument("--modelName", default="/home/niedong/Data4LowDosePET/pytorch_UNet/model/resunet2d_dp_pet_BatchAug_sNorm_lres_bn_lr5e3_lrdec_base1_lossL1_0p005_0628_200000.pt", type=str, help="modelname")
+parser.add_argument("--inputKey", default="MRI", type=str, help="input modality")
+parser.add_argument("--targetKey", default="PET", type=str, help="target modality")
 
 global opt 
 opt = parser.parse_args()
@@ -37,7 +39,7 @@ def main():
     checkpoint = torch.load(os.path.join('checkpoints', opt.modelName))
     netG.load_state_dict(checkpoint['model'])
 
-    test_dataset = DataLoaderVal(os.path.join('../dataset', opt.dataset, 'test'), 'MRI', 'PET', {'w': opt.img_size, 'h': opt.img_size})
+    test_dataset = DataLoaderVal(os.path.join('../dataset', opt.dataset, 'test'), opt.inputKey, opt.targetKey, {'w': opt.img_size, 'h': opt.img_size})
     testloader = DataLoader(dataset=test_dataset, batch_size=1, shuffle=False, num_workers=16, drop_last=False, pin_memory=True)
 
     for i, data in enumerate(tqdm(testloader)):

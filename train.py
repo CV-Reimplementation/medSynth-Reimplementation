@@ -1,13 +1,10 @@
 # from __future__ import print_function
 import argparse, os
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.autograd import Variable
-import numpy as np
 import torch.optim as optim
 import torch
 from utils import DataLoaderTrain, weights_init
-from Unet2d_pytorch import UNet, ResUNet, UNet_LRes, ResUNet_LRes, Discriminator
+from model import UNet, ResUNet, UNet_LRes, ResUNet_LRes, Discriminator
 from nnBuildUnits import RelativeThreshold_RegLoss, gdl_loss, adjust_learning_rate, calc_gradient_penalty
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -15,7 +12,7 @@ from tqdm import tqdm
 # Training settings
 parser = argparse.ArgumentParser(description="PyTorch InfantSeg")
 parser.add_argument("--gpuID", type=int, default=0, help="how to normalize the data")
-parser.add_argument("--img_size", type=int, default=256, help="size of image")
+parser.add_argument("--img_size", type=int, default=128, help="size of image")
 parser.add_argument("--lambda_AD", default=0.05, type=float, help="weight for AD loss, Default: 0.05")
 parser.add_argument("--lambda_D_WGAN_GP", default=10, type=float, help="weight for gradient penalty of WGAN-GP, Default: 10")
 parser.add_argument("--whichLoss", type=int, default=1, help="which loss to use: 1. LossL1, 2. lossRTL1, 3. MSE (default)")
@@ -23,7 +20,7 @@ parser.add_argument("--gdlNorm", default=2, type=int, help="p-norm for the gdl l
 parser.add_argument("--lambda_gdl", default=0.05, type=float, help="Weight for gdl loss, Default: 0.05")
 parser.add_argument("--whichNet", type=int, default=4, help="which loss to use: 1. UNet, 2. ResUNet, 3. UNet_LRes and 4. ResUNet_LRes (default, 3)")
 parser.add_argument("--lossBase", type=int, default=1, help="The base to multiply the lossG_G, Default (1)")
-parser.add_argument("--batchSize", type=int, default=1, help="training batch size")
+parser.add_argument("--batchSize", type=int, default=4, help="training batch size")
 parser.add_argument("--dataset", action="store_true", help="name of dataset", default='MRI-PET')
 parser.add_argument("--numOfChannel_singleSource", type=int, default=3, help="# of channels for a 2D patch for the main modality (Default, 5)")
 parser.add_argument("--numOfChannel_allSource", type=int, default=3, help="# of channels for a 2D patch for all the concatenated modalities (Default, 5)")
@@ -44,6 +41,8 @@ parser.add_argument("--momentum", default=0.9, type=float, help="Momentum, Defau
 parser.add_argument("--weight-decay", "--wd", default=1e-4, type=float, help="weight decay, Default: 1e-4")
 parser.add_argument("--RT_th", default=0.005, type=float, help="Relative thresholding: 0.005")
 parser.add_argument("--pretrained", default="", type=str, help="path to pretrained model (default: none)")
+parser.add_argument("--inputKey", default="MRI", type=str, help="input modality")
+parser.add_argument("--targetKey", default="PET", type=str, help="target modality")
 parser.add_argument("--prefixModelName", default="temp", type=str, help="prefix of the to-be-saved model name")
 
 global opt, model 
@@ -87,7 +86,7 @@ def main():
     
     
 
-    train_dataset = DataLoaderTrain(os.path.join('../dataset', opt.dataset, 'train'), 'MRI', 'PET', {'w': opt.img_size, 'h': opt.img_size})
+    train_dataset = DataLoaderTrain(os.path.join('../dataset', opt.dataset, 'train'), opt.inputKey, opt.targetKey, {'w': opt.img_size, 'h': opt.img_size})
     trainloader = DataLoader(dataset=train_dataset, batch_size=opt.batchSize, shuffle=True, num_workers=16, drop_last=False, pin_memory=True)
 
     if opt.resume:
@@ -138,7 +137,6 @@ def main():
             batch_size = inputs.size(0)
             real_label = torch.ones(batch_size,1)
             real_label = real_label.cuda()
-            real_label = Variable(real_label)
 
             loss_real = criterion_bce(outputD_real,real_label)
             loss_real.backward()
@@ -147,7 +145,6 @@ def main():
     #         fake_label = torch.FloatTensor(batch_size)
     #         fake_label.data.resize_(batch_size).fill_(0)
             fake_label = fake_label.cuda()
-            fake_label = Variable(fake_label)
             loss_fake = criterion_bce(outputD_fake,fake_label)
             loss_fake.backward()
 
